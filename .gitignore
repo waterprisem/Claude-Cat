@@ -1,0 +1,5 @@
+node_modules/
+assets/processed/
+*.log
+.DS_Store
+dist/

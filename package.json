@@ -1,0 +1,16 @@
+{
+  "name": "claude-cat",
+  "version": "0.1.0",
+  "private": true,
+  "description": "A macOS desktop cat that reflects what Claude Code is doing",
+  "main": "src/main/index.js",
+  "scripts": {
+    "start": "electron .",
+    "assets": "node scripts/process-assets.js",
+    "test": "node --test"
+  },
+  "license": "UNLICENSED",
+  "devDependencies": {
+    "electron": "^44.8.0"
+  }
+}
