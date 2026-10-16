@@ -95,7 +95,7 @@ curl -s -m 1 --connect-timeout 0.3 -X POST -H 'Content-Type: application/json' -
 
 The trailing `# claude-cat` comment is the marker the installer uses to find and remove its own entries. If the app is not running, curl fails fast and Claude Code is unaffected.
 
-Events to register: `SessionStart`, `UserPromptSubmit`, `PreToolUse`, `PostToolUse`, `Notification`, `Stop`, `SubagentStop`, `SessionEnd`.
+Events to register: `SessionStart`, `UserPromptSubmit`, `PreToolUse`, `PostToolUse`, `PostToolUseFailure`, `PermissionRequest`, `Notification`, `Stop`, `StopFailure`, `SubagentStop`, `SessionEnd`. Each entry has `"timeout": 5` and no matcher. The hook stays a synchronous `command` (an `http` hook treats an empty 200 as an error, and async hooks could deliver `Stop` before the last `PostToolUse`).
 
 **Important:** Verify the exact event names and payload fields against the current Claude Code hooks documentation and against real logged payloads in Phase 1. Do not trust this document over what Claude Code actually sends.
 
@@ -106,14 +106,16 @@ Events to register: `SessionStart`, `UserPromptSubmit`, `PreToolUse`, `PostToolU
 | `SessionStart` | create session, state `done`, text "..." (idle, no message yet) |
 | `UserPromptSubmit` | `coding`, action "Thinking..." |
 | `PreToolUse` | `coding`, action from `toolSummary(tool_name, tool_input)` |
-| `PostToolUse` | `coding` (this is also how it recovers after a permission prompt is approved) |
-| `Notification` | `waiting`, hover text = notification message |
-| `Stop` | `done`, hover text = head of last assistant message from the transcript |
+| `PostToolUse`, `PostToolUseFailure` | `coding` (this is also how it recovers after a permission prompt is approved) |
+| `PermissionRequest` | `waiting`, "Claude needs your permission to use <tool>" |
+| `Notification` | `waiting`, hover text = notification message. Ignored when `idle_prompt` arrives in `done`, or `permission_prompt` arrives already `waiting` (its message is generic) |
+| `Stop` | `done`, hover text = head of `last_assistant_message` (transcript only as a fallback) |
+| `StopFailure` | `waiting`, "Stopped (<error type>)" |
 | `SubagentStop` | no state change (main agent is still working) |
 | `SessionEnd` | remove session and close its window |
 
 Edge cases to handle:
-- **Interrupt (Esc):** `Stop` may not fire on a user interrupt. If a session is `coding` and no event arrives for 120s (configurable), flip it to `waiting` with text "Stopped?".
+- **Interrupt (Esc):** verified: Claude Code sends no event at all on Esc. If a session is `coding` and no event arrives for 120s (configurable), flip it to `waiting` with text "Stopped?".
 - **Killed terminal:** `SessionEnd` may never fire. Remove sessions that have had no events for 6 hours (configurable).
 - **Transcript timing:** the transcript file may not be fully flushed when `Stop` fires. Read it with a short delay and one retry. Parse defensively (JSONL, skip bad lines, find the last assistant entry with text content). If anything fails, fall back to "Done".
 - **Unknown session:** any event from an unseen `session_id` creates the session (the app may have started mid-session).
@@ -154,12 +156,12 @@ Short, human, max about 40 characters, never leaking long commands or file conte
 **Done when:** app starts and quits cleanly from the tray, and processed assets exist with the expected frame counts (3 and 8).
 
 ### Phase 1: Event pipeline (no UI)
-- [ ] HTTP server bound to `127.0.0.1` only, `POST /event`, always responds fast with 200 and an empty body
-- [ ] Every raw payload appended to a debug log file
-- [ ] `sessions.js` implements the state machine above with injectable clock for timers
-- [ ] `transcript.js` and `toolSummary.js` with unit tests (use `node:test`, no extra deps)
-- [ ] Tray menu item "Install hooks" (can be crude for now) or a documented manual snippet for `~/.claude/settings.json`
-- [ ] Console prints every state transition: `[my-app] coding: Editing App.tsx`
+- [x] HTTP server bound to `127.0.0.1` only, `POST /event`, always responds fast with 200 and an empty body
+- [x] Every raw payload appended to a debug log file (off by default; `"debugLog": true` in config.json)
+- [x] `sessions.js` implements the state machine above with injectable clock for timers
+- [x] `transcript.js` and `toolSummary.js` with unit tests (use `node:test`, no extra deps)
+- [x] Tray menu item "Install hooks" (can be crude for now) or a documented manual snippet for `~/.claude/settings.json`
+- [x] Console prints every state transition: `[my-app] coding: Editing App.tsx`
 
 **Done when:** the user runs a real Claude Code CLI session and the console shows correct `coding` -> `waiting`/`done` transitions with sensible text, including a permission prompt and an Esc interrupt. Update the "verified payload shapes" section at the bottom of this file with what Claude Code really sends.
 
@@ -212,4 +214,27 @@ Windows/Linux, sounds, notifications, themes, multiple cat skins, a cat that fol
 
 ## 5. Verified payload shapes
 
-_(Phase 1 fills this in with real examples from Claude Code.)_
+Verified on 2026-10-16 with Claude Code 2.1.287 against `events.log` from real sessions. Field names only; values are illustrative.
+
+**Common to every event:** `session_id`, `transcript_path`, `cwd`, `hook_event_name`, `scratchpad_dir`. Most events also send `prompt_id`, `permission_mode` (`default`, `auto`, …) and `effort: { level }`. Subagent events add `agent_id` and `agent_type` (can be `""`), with the parent's `session_id`.
+
+| Event | Extra fields seen |
+|---|---|
+| `SessionStart` | `source` (`startup`), `model` |
+| `UserPromptSubmit` | `prompt` |
+| `PreToolUse` | `tool_name`, `tool_input` (Bash: `command`, `description`; Read: `file_path`, `offset`), `tool_use_id` |
+| `PermissionRequest` | `tool_name`, `tool_input`, `permission_suggestions` |
+| `PostToolUse` | `tool_name`, `tool_input`, `tool_response` (Bash: `stdout`, `stderr`, `interrupted`, …), `tool_use_id`, `duration_ms` |
+| `PostToolUseFailure` | `tool_name`, `tool_input`, `tool_use_id`, `duration_ms`, `error` (e.g. "Exit code 1"), `is_interrupt` |
+| `Notification` | `message`, `notification_type` (`permission_prompt`, `idle_prompt`) |
+| `Stop` | `last_assistant_message`, `stop_hook_active`, `background_tasks`, `session_crons` |
+| `SubagentStop` | as `Stop`, plus `agent_id`, `agent_type`, `agent_transcript_path` |
+| `SessionEnd` | `reason` (`other` seen on `/exit`) |
+
+Observed behavior:
+- **Permission prompt:** `PreToolUse` → `PermissionRequest` (within ~40 ms) → `Notification` `permission_prompt` with the generic message "Claude needs your permission" (~6 s later) → `PostToolUse` after approval.
+- **Finished turn:** `Stop` always carried `last_assistant_message`; the transcript fallback was never needed. `Notification` `idle_prompt` ("Claude is waiting for your input") follows ~60 s later.
+- **Esc interrupt:** no event at all; the next event is the user's next `UserPromptSubmit`. The 120 s "Stopped?" timeout is the only signal.
+- **Already-open sessions** picked up newly installed hooks without a restart.
+- `SubagentStop` can arrive after the main `Stop` (background helpers), and can be the first event seen for a session.
+- Not yet seen: `StopFailure`, and `is_interrupt: true`.
