@@ -1,4 +1,4 @@
-// App lifecycle: single instance, no Dock icon, tray menu, event pipeline.
+// App lifecycle: single instance, no Dock icon, tray menu, event pipeline, cat window.
 
 const fs = require('node:fs');
 const path = require('node:path');
@@ -11,6 +11,7 @@ const server = require('./server');
 const { SessionStore } = require('./sessions');
 const { head } = require('./text');
 const { lastAssistantText } = require('./transcript');
+const { createCatController } = require('./windows');
 
 const TRAY_ICON = path.join(__dirname, '..', '..', 'assets', 'processed', 'tray.png');
 
@@ -18,6 +19,8 @@ let tray = null; // module-level so it is not garbage-collected
 let settings = config.DEFAULTS;
 let serverStatus = 'Starting…';
 let lastMessage = null; // shown in the tray after install/remove
+let store = null;
+let cats = null;
 
 if (!app.requestSingleInstanceLock()) {
   app.quit();
@@ -31,17 +34,25 @@ if (!app.requestSingleInstanceLock()) {
 
   // Stay alive with no windows; quitting happens from the tray.
   app.on('window-all-closed', () => {});
+  app.on('before-quit', () => cats && cats.destroy());
 }
 
 function startPipeline() {
   const eventLog = settings.debugLog ? createEventLog(path.join(config.dataDir, 'events.log')) : null;
-  const store = new SessionStore({
+  cats = createCatController(settings);
+  store = new SessionStore({
     config: settings,
     readTranscript: (file) => lastAssistantText(file, { delayMs: settings.transcriptDelayMs }),
   });
 
-  store.on('change', (s) => console.log(`[${s.project}] ${s.state}: ${head(s.text, 120) || '...'}`));
-  store.on('remove', (id) => console.log(`[claude-cat] session ended: ${id}`));
+  store.on('change', (s) => {
+    console.log(`[${s.project}] ${s.state}: ${head(s.text, 120) || '...'}`);
+    cats.show(s);
+  });
+  store.on('remove', (id) => {
+    console.log(`[claude-cat] session ended: ${id}`);
+    cats.remove(id);
+  });
   setInterval(() => store.tick(), settings.tickIntervalMs).unref();
 
   server
@@ -89,6 +100,18 @@ function runHooksAction(action) {
   updateMenu();
 }
 
+// Temporary (Phase 2): drive a fake session through the real pipeline.
+function simulate(event, extra = {}) {
+  if (store) store.handle({ event, sessionId: 'debug-cat', cwd: '/debug', project: 'debug', ...extra });
+}
+
+const debugMenu = [
+  { label: 'Simulate coding', click: () => simulate('PreToolUse', { toolName: 'Edit', toolInput: { file_path: '/debug/App.tsx' } }) },
+  { label: 'Simulate waiting', click: () => simulate('PermissionRequest', { toolName: 'Bash' }) },
+  { label: 'Simulate done', click: () => simulate('Stop', { lastAssistantMessage: 'All done, the tests pass.' }) },
+  { label: 'Remove debug cat', click: () => simulate('SessionEnd') },
+];
+
 function updateMenu() {
   if (!tray) return;
   const installed = hooksInstaller.isInstalled();
@@ -105,6 +128,7 @@ function updateMenu() {
       ? { label: 'Remove hooks', click: () => runHooksAction('uninstall') }
       : { label: 'Install hooks', click: () => runHooksAction('install') },
     { label: 'Open event log', enabled: settings.debugLog, click: () => shell.openPath(logFile) },
+    { label: 'Debug', submenu: debugMenu },
     { type: 'separator' },
     { label: 'Quit', click: () => app.quit() }
   );

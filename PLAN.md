@@ -166,13 +166,15 @@ Short, human, max about 40 characters, never leaking long commands or file conte
 **Done when:** the user runs a real Claude Code CLI session and the console shows correct `coding` -> `waiting`/`done` transitions with sensible text, including a permission prompt and an Esc interrupt. Update the "verified payload shapes" section at the bottom of this file with what Claude Code really sends.
 
 ### Phase 2: One cat, animated
-- [ ] Frameless, transparent, always-on-top window showing the cat sprite
-- [ ] Preload all frames; swap frames without flicker
-- [ ] Coding loop and idle-with-blink timing as specified
-- [ ] State pushed from main via IPC; temporary tray debug items "Simulate coding / waiting"
-- [ ] Hidden Dock icon, visible on all Spaces and over fullscreen apps, does not steal focus
+- [x] Frameless, transparent, always-on-top window showing the cat sprite
+- [x] Preload all frames; swap frames without flicker
+- [x] Coding loop and idle-with-blink timing as specified
+- [x] State pushed from main via IPC; temporary tray debug items "Simulate coding / waiting"
+- [x] Hidden Dock icon, visible on all Spaces and over fullscreen apps, does not steal focus
 
 **Done when:** simulated and real events switch the animation correctly and the window never takes keyboard focus.
+
+_Verified 2026-10-16:_ the cat hides for about a second during the Space-switch and fullscreen animations, then returns. This is accepted as normal macOS behavior for all-Spaces windows. A higher window level (`status`/`screen-saver`) might avoid it, but wasn't tried. Phase 2 shows one window for the most recently changed session; it hides only when no sessions remain.
 
 ### Phase 3: Interaction
 - [ ] Drag to move (works from any opaque part of the cat)

@@ -15,6 +15,11 @@ const DEFAULTS = Object.freeze({
   transcriptDelayMs: 300,
   debugLog: false, // events.log holds full prompts and replies; opt in via config.json
   maxTextLength: 500,
+  catSize: 128,
+  codingFps: 6,
+  blinkFps: 14,
+  idleHoldMinMs: 3000,
+  idleHoldMaxMs: 7000,
 });
 
 // Returns DEFAULTS merged with config.json. Unknown keys and wrong types are ignored.
