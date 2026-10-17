@@ -5,6 +5,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const { DEFAULTS } = require('./config');
+const { writeJsonAtomic } = require('./fsUtil');
 
 const MARKER = '# claude-cat';
 const SETTINGS_PATH = path.join(os.homedir(), '.claude', 'settings.json');
@@ -48,16 +49,16 @@ function readSettings(file) {
 
 function backup(file) {
   const stamp = new Date().toISOString().replace(/[:.]/g, '-');
-  const dest = `${file}.claude-cat-backup-${stamp}`;
-  fs.copyFileSync(file, dest, fs.constants.COPYFILE_EXCL);
-  return dest;
-}
-
-function writeAtomic(file, data) {
-  fs.mkdirSync(path.dirname(file), { recursive: true });
-  const tmp = `${file}.claude-cat-tmp-${process.pid}`;
-  fs.writeFileSync(tmp, JSON.stringify(data, null, 2) + '\n');
-  fs.renameSync(tmp, file);
+  // Never overwrite an earlier backup, even one made in the same millisecond.
+  for (let n = 0; ; n++) {
+    const dest = `${file}.claude-cat-backup-${stamp}${n ? `-${n}` : ''}`;
+    try {
+      fs.copyFileSync(file, dest, fs.constants.COPYFILE_EXCL);
+      return dest;
+    } catch (err) {
+      if (err.code !== 'EEXIST') throw err;
+    }
+  }
 }
 
 // Removes our entries in place, dropping anything left empty.
@@ -101,7 +102,7 @@ function install(file = SETTINGS_PATH, { port = DEFAULTS.port } = {}) {
     if (!Array.isArray(settings.hooks[event])) settings.hooks[event] = [];
     settings.hooks[event].push({ hooks: [{ type: 'command', command, timeout: 5 }] });
   }
-  writeAtomic(file, settings);
+  writeJsonAtomic(file, settings);
   return { backupPath };
 }
 
@@ -110,7 +111,7 @@ function uninstall(file = SETTINGS_PATH) {
   if (!settings) return { backupPath: null };
   const backupPath = backup(file);
   stripOurs(settings);
-  writeAtomic(file, settings);
+  writeJsonAtomic(file, settings);
   return { backupPath };
 }
 

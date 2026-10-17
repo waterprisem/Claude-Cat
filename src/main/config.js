@@ -1,8 +1,10 @@
 // All tunable constants in one place, overridable by config.json.
+// config.json also stores the cat size and per-project positions the app saves.
 
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
+const { writeJsonAtomic } = require('./fsUtil');
 
 const dataDir = path.join(os.homedir(), 'Library', 'Application Support', 'claude-cat');
 const configPath = path.join(dataDir, 'config.json');
@@ -22,7 +24,20 @@ const DEFAULTS = Object.freeze({
   idleHoldMaxMs: 7000,
 });
 
-// Returns DEFAULTS merged with config.json. Unknown keys and wrong types are ignored.
+const SAVED_KEYS = ['catSize', 'positions'];
+
+// { project: { x, y } } with finite numbers only; anything else is dropped.
+function cleanPositions(value) {
+  const out = {};
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return out;
+  for (const [project, p] of Object.entries(value)) {
+    if (project.length > 256 || !p || !Number.isFinite(p.x) || !Number.isFinite(p.y)) continue;
+    out[project] = { x: p.x, y: p.y };
+  }
+  return out;
+}
+
+// Returns DEFAULTS merged with config.json, plus `positions`. Unknown keys and wrong types are ignored.
 function load(file = configPath) {
   let overrides = {};
   try {
@@ -36,7 +51,25 @@ function load(file = configPath) {
       if (typeof overrides[key] === typeof DEFAULTS[key]) config[key] = overrides[key];
     }
   }
+  config.positions = cleanPositions(overrides && overrides.positions);
   return config;
 }
 
-module.exports = { DEFAULTS, dataDir, configPath, load };
+// Merges catSize/positions into config.json, keeping every other key. Leaves a broken file alone.
+function save(patch, file = configPath) {
+  let current = {};
+  try {
+    current = JSON.parse(fs.readFileSync(file, 'utf8'));
+  } catch (err) {
+    if (err.code !== 'ENOENT') {
+      console.warn(`[claude-cat] not saving, config.json is unreadable: ${err.message}`);
+      return false;
+    }
+  }
+  if (!current || typeof current !== 'object' || Array.isArray(current)) return false;
+  for (const key of SAVED_KEYS) if (key in patch) current[key] = patch[key];
+  writeJsonAtomic(file, current);
+  return true;
+}
+
+module.exports = { DEFAULTS, dataDir, configPath, load, save };

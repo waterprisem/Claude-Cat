@@ -177,10 +177,10 @@ Short, human, max about 40 characters, never leaking long commands or file conte
 _Verified 2026-10-16:_ the cat hides for about a second during the Space-switch and fullscreen animations, then returns. This is accepted as normal macOS behavior for all-Spaces windows. A higher window level (`status`/`screen-saver`) might avoid it, but wasn't tried. Phase 2 shows one window for the most recently changed session; it hides only when no sessions remain.
 
 ### Phase 3: Interaction
-- [ ] Drag to move (works from any opaque part of the cat)
-- [ ] Click-through on transparent pixels (`setIgnoreMouseEvents(true, { forward: true })` plus hit-testing in the renderer)
-- [ ] Hover reveals `+` / `-` buttons; size steps 64 to 256 in steps of 16; the window grows with the cat
-- [ ] Position (per project) and size persisted, restored on next launch, clamped to visible displays
+- [x] Drag to move (works from any opaque part of the cat)
+- [x] Click-through on transparent pixels (`setIgnoreMouseEvents(true, { forward: true })` plus hit-testing in the renderer)
+- [x] Hover reveals `+` / `-` buttons; size steps 64 to 256 in steps of 16; the window grows with the cat
+- [x] Position (per project) and size persisted, restored on next launch, clamped to visible displays
 
 **Done when:** the user can drag and resize the cat, clicking next to it hits the app underneath, and a restart preserves everything.
 
