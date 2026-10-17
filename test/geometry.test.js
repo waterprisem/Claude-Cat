@@ -80,3 +80,15 @@ test('resizeFromCorner keeps the top-left and snaps the size', () => {
   assert.equal(g.resizeFromCorner(b, -500, -500).width, 64);
   assert.equal(g.resizeFromCorner(b, 500, 500).width, 256);
 });
+
+test('staggerSpot keeps a free spot and steps left, then up, around occupied ones', () => {
+  const b = { x: 1288, y: 747, width: 128, height: 128 };
+  assert.deepEqual(g.staggerSpot(b, [], main), b);
+  assert.deepEqual(g.staggerSpot(b, [b], main), { ...b, x: 1148 });
+  const row = [b, { ...b, x: 1148 }];
+  assert.deepEqual(g.staggerSpot(b, row, main), { ...b, x: 1008 });
+  // A full row moves up one row.
+  const narrow = { x: 0, y: 0, width: 300, height: 875 };
+  const c = { x: 100, y: 600, width: 128, height: 128 };
+  assert.deepEqual(g.staggerSpot(c, [c], narrow), { ...c, y: 460 });
+});

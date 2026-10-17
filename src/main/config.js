@@ -23,9 +23,10 @@ const DEFAULTS = Object.freeze({
   blinkFps: 14,
   idleHoldMinMs: 3000,
   idleHoldMaxMs: 7000,
+  autoShow: true, // new projects get a cat; set from the tray menu
 });
 
-const SAVED_KEYS = ['catSize', 'positions'];
+const SAVED_KEYS = ['catSize', 'positions', 'autoShow', 'projects'];
 
 // { project: { x, y } } with finite numbers only; anything else is dropped.
 function cleanPositions(value) {
@@ -38,7 +39,18 @@ function cleanPositions(value) {
   return out;
 }
 
-// Returns DEFAULTS merged with config.json, plus `positions`. Unknown keys and wrong types are ignored.
+// { project: { muted } }; anything malformed is dropped.
+function cleanProjects(value) {
+  const out = {};
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return out;
+  for (const [project, p] of Object.entries(value)) {
+    if (project.length > 256 || !p || typeof p !== 'object') continue;
+    out[project] = { muted: p.muted === true };
+  }
+  return out;
+}
+
+// Returns DEFAULTS merged with config.json, plus `positions` and `projects`. Unknown keys and wrong types are ignored.
 function load(file = configPath) {
   let overrides = {};
   try {
@@ -53,10 +65,11 @@ function load(file = configPath) {
     }
   }
   config.positions = cleanPositions(overrides && overrides.positions);
+  config.projects = cleanProjects(overrides && overrides.projects);
   return config;
 }
 
-// Merges catSize/positions into config.json, keeping every other key. Leaves a broken file alone.
+// Merges the app-saved keys (size, positions, project choices) into config.json, keeping every other key. Leaves a broken file alone.
 function save(patch, file = configPath) {
   let current = {};
   try {

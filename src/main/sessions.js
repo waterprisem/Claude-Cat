@@ -92,6 +92,15 @@ class SessionStore extends EventEmitter {
     this.emit('change', s);
   }
 
+  // A session found open at startup (see liveSessions.js). Ignored if events already created it.
+  restore({ id, cwd, project, busy, text, transcriptPath }) {
+    if (this.sessions.has(id)) return;
+    const s = { id, project, cwd, state: busy ? 'coding' : 'done', text: '', lastEventAt: this.now(), seq: 0, turn: 0, transcriptPath: transcriptPath || null };
+    s.text = busy ? 'Working...' : head(text || '', this.config.maxTextLength);
+    this.sessions.set(id, s);
+    this.emit('change', s);
+  }
+
   // Esc seen in the transcript (Claude Code sends no hook event for it).
   interrupted(id) {
     const s = this.sessions.get(id);

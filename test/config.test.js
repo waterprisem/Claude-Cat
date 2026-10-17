@@ -51,3 +51,14 @@ test('save creates a missing file and leaves broken JSON alone', () => {
   assert.equal(config.save({ catSize: 64 }, broken), false);
   assert.equal(fs.readFileSync(broken, 'utf8'), '{nope');
 });
+
+test('projects and autoShow load cleanly and save', () => {
+  const file = tmpFile({ autoShow: false, projects: { app: { muted: true }, bad: 'x', odd: { muted: 'yes' } } });
+  const c = config.load(file);
+  assert.equal(c.autoShow, false);
+  assert.deepEqual(c.projects, { app: { muted: true }, odd: { muted: false } });
+  config.save({ autoShow: true, projects: { app: { muted: false } } }, file);
+  const saved = JSON.parse(fs.readFileSync(file, 'utf8'));
+  assert.equal(saved.autoShow, true);
+  assert.deepEqual(saved.projects, { app: { muted: false } });
+});

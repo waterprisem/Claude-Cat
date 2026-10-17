@@ -1,4 +1,4 @@
-// App lifecycle: single instance, no Dock icon, tray menu, event pipeline, cat window.
+// App lifecycle: single instance, no Dock icon, tray menu, event pipeline, cat windows.
 
 const fs = require('node:fs');
 const path = require('node:path');
@@ -6,11 +6,13 @@ const { app, Menu, Tray, nativeImage, shell } = require('electron');
 const config = require('./config');
 const { createEventLog } = require('./eventLog');
 const hooksInstaller = require('./hooksInstaller');
+const { readLiveSessions } = require('./liveSessions');
 const { createInterruptWatcher } = require('./interruptWatch');
 const { sanitize } = require('./payload');
+const { createProjects } = require('./projects');
 const server = require('./server');
 const { SessionStore } = require('./sessions');
-const { head } = require('./text');
+const { clip, head } = require('./text');
 const { lastAssistantText } = require('./transcript');
 const { createCatController } = require('./windows');
 
@@ -22,6 +24,8 @@ let serverStatus = 'Starting…';
 let lastMessage = null; // shown in the tray after install/remove
 let store = null;
 let cats = null;
+let projects = null;
+let menuKey = ''; // the Projects submenu as last built, to skip needless rebuilds
 
 if (!app.requestSingleInstanceLock()) {
   app.quit();
@@ -41,6 +45,7 @@ if (!app.requestSingleInstanceLock()) {
 function startPipeline() {
   const eventLog = settings.debugLog ? createEventLog(path.join(config.dataDir, 'events.log')) : null;
   cats = createCatController(settings);
+  projects = createProjects({ autoShow: settings.autoShow, projects: settings.projects });
   store = new SessionStore({
     config: settings,
     readTranscript: (file) => lastAssistantText(file, { delayMs: settings.transcriptDelayMs }),
@@ -53,16 +58,21 @@ function startPipeline() {
 
   store.on('change', (s) => {
     console.log(`[${s.project}] ${s.state}: ${head(s.text, 120) || '...'}`);
-    cats.show(s);
+    if (projects.seen(s.project)) saveProjects();
+    if (projects.isShown(s.project)) cats.show(s);
+    else cats.remove(s.id);
     if (s.state === 'coding' && s.transcriptPath) interrupts.watch(s.id, s.transcriptPath, s.turn);
     else interrupts.unwatch(s.id);
+    refreshMenu();
   });
   store.on('remove', (id) => {
     console.log(`[claude-cat] session ended: ${id}`);
     interrupts.unwatch(id);
     cats.remove(id);
+    refreshMenu();
   });
   setInterval(() => store.tick(), settings.tickIntervalMs).unref();
+  restoreOpenSessions();
 
   server
     .start({
@@ -82,6 +92,70 @@ function startPipeline() {
       console.error(`[claude-cat] ${serverStatus}: ${err.message}`);
     })
     .finally(updateMenu);
+}
+
+// Cats for sessions that were already open when the app started.
+function restoreOpenSessions() {
+  for (const live of readLiveSessions()) {
+    const restore = (text) => store.restore({ id: live.sessionId, cwd: live.cwd, project: live.project, busy: live.busy, text, transcriptPath: live.transcriptPath });
+    if (live.busy || !live.transcriptPath) restore('');
+    else lastAssistantText(live.transcriptPath, { delayMs: 0 }).then(restore, () => restore(''));
+  }
+}
+
+// --- Projects: which ones get a cat ---------------------------------------------
+
+function saveProjects() {
+  try {
+    config.save(projects.toJSON());
+  } catch (err) {
+    console.error(`[claude-cat] could not save projects: ${err.message}`);
+  }
+}
+
+function sessionCounts() {
+  const counts = new Map();
+  for (const s of store.list()) counts.set(s.project, (counts.get(s.project) || 0) + 1);
+  return counts;
+}
+
+function setProjectShown(name, shown) {
+  projects.setMuted(name, !shown);
+  saveProjects();
+  for (const s of store.list()) {
+    if (s.project !== name) continue;
+    if (shown) cats.show(s);
+    else cats.remove(s.id);
+  }
+  refreshMenu();
+}
+
+function setAutoShow(value) {
+  projects.setAutoShow(value);
+  saveProjects();
+  updateMenu();
+}
+
+function projectsMenu() {
+  const list = projects ? projects.menuList(sessionCounts()) : [];
+  const items = list.map((p) => ({
+    label: `${clip(p.name, 40)}${p.count ? ` (${p.count})` : ''}`,
+    type: 'checkbox',
+    checked: p.shown,
+    click: (item) => setProjectShown(p.name, item.checked),
+  }));
+  if (!items.length) items.push({ label: 'No projects yet', enabled: false });
+  items.push(
+    { type: 'separator' },
+    { label: 'Auto-show new projects', type: 'checkbox', checked: projects ? projects.autoShow : true, click: (item) => setAutoShow(item.checked) }
+  );
+  return items;
+}
+
+// Rebuilds the tray menu only when the project list or session counts changed.
+function refreshMenu() {
+  const key = JSON.stringify(projects.menuList(sessionCounts()));
+  if (key !== menuKey) updateMenu();
 }
 
 function createTray() {
@@ -109,7 +183,7 @@ function runHooksAction(action) {
   updateMenu();
 }
 
-// Temporary (Phase 2): drive a fake session through the real pipeline.
+// Temporary (until Phase 6): drive a fake session through the real pipeline.
 function simulate(event, extra = {}) {
   if (store) store.handle({ event, sessionId: 'debug-cat', cwd: '/debug', project: 'debug', ...extra });
 }
@@ -131,7 +205,10 @@ function updateMenu() {
     { label: serverStatus, enabled: false },
   ];
   if (lastMessage) items.push({ label: head(lastMessage, 60), enabled: false });
+  if (projects) menuKey = JSON.stringify(projects.menuList(sessionCounts()));
   items.push(
+    { type: 'separator' },
+    { label: 'Projects', submenu: projectsMenu() },
     { type: 'separator' },
     installed
       ? { label: 'Remove hooks', click: () => runHooksAction('uninstall') }

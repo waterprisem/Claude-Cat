@@ -119,6 +119,7 @@ Edge cases to handle:
 - **Killed terminal:** `SessionEnd` may never fire. Remove sessions that have had no events for 6 hours (configurable).
 - **Transcript timing:** the transcript file may not be fully flushed when `Stop` fires. Read it with a short delay and one retry. Parse defensively (JSONL, skip bad lines, find the last assistant entry with text content). If anything fails, fall back to "Done".
 - **Unknown session:** any event from an unseen `session_id` creates the session (the app may have started mid-session).
+- **App restart:** at startup, read `~/.claude/sessions/<pid>.json` (one per open Claude Code session: `pid`, `sessionId`, `cwd`, `status` `busy`/`idle`). Keep those whose process is alive, and create their cats right away: `coding` "Working..." if busy, else `done` with the transcript's last assistant text. Validated like hook payloads; read once, never written.
 - **Subagent/sidechain noise:** do not let subagent activity produce more than one cat per session.
 
 ### Tool summaries (`toolSummary.js`)
@@ -194,10 +195,10 @@ _Verified 2026-10-16:_ the cat hides for about a second during the Space-switch 
 _Notes from Phase 4 testing (2026-10-16):_ the window includes an 84px bubble zone above the cat, and macOS keeps windows below the menu bar, so a dragged cat stops just under it with the bubble still above. The flip to below only happens for a cat placed higher by other means. A version that relaid the window during the drag broke dragging and was reverted; the user is fine with this. Esc detection by watching the transcript was added right after Phase 4.
 
 ### Phase 5: Multiple sessions and project control
-- [ ] One window per `session_id`, spawned at a saved or default position (stagger so they do not overlap)
-- [ ] Tray menu lists known projects with: Show / Mute, and "Auto-show new projects" toggle
-- [ ] Muted projects get no window; unmuting recreates it
-- [ ] Stale and interrupt timeouts from the edge-case list implemented and configurable in config.json
+- [x] One window per `session_id`, spawned at a saved or default position (stagger so they do not overlap)
+- [x] Tray menu lists projects with open sessions, each with Show / Mute (a checkbox), and an "Auto-show new projects" toggle. Choices for closed projects are remembered but not listed
+- [x] Muted projects get no window; unmuting recreates it
+- [x] Stale and interrupt timeouts from the edge-case list implemented and configurable in config.json
 
 **Done when:** two simultaneous sessions in two folders produce two independent cats, and muting one removes only that cat.
 
@@ -214,7 +215,7 @@ _Notes from Phase 4 testing (2026-10-16):_ the window includes an 84px bubble zo
 
 ## 4. Out of scope (for now)
 
-Windows/Linux, sounds, notifications, themes, multiple cat skins, a cat that follows the mouse, reading anything other than hook events, any network access beyond localhost.
+Windows/Linux, sounds, notifications, themes, multiple cat skins, a cat that follows the mouse, reading anything other than hook events, transcripts and (at startup only) `~/.claude/sessions/`, any network access beyond localhost.
 
 ## 5. Verified payload shapes
 

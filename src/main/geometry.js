@@ -62,6 +62,24 @@ function clampToWorkAreas(b, areas) {
   };
 }
 
+// First spot for a new cat that overlaps none of the occupied ones: the wanted spot,
+// then leftward along its row, then the rows above. Stays inside the area.
+function staggerSpot(b, occupied, area, gap = 12) {
+  const free = (c) => !occupied.some((o) => overlap(c, o) > 0);
+  if (free(b)) return { ...b };
+  const minX = area ? area.x : -Infinity;
+  const minY = area ? area.y : -Infinity;
+  for (let row = 0; b.y - row * (b.height + gap) >= minY; row++) {
+    const y = b.y - row * (b.height + gap);
+    for (let x = b.x; x >= minX; x -= b.width + gap) {
+      const c = { ...b, x, y };
+      if (free(c)) return c;
+    }
+    if (row > 1000) break;
+  }
+  return { ...b }; // the screen is full of cats: overlap
+}
+
 // Window around the cat with room for the speech bubble: above the cat, or below it
 // when there is no room above. Centered on the cat, then shifted to stay on screen.
 // Returns the window bounds, the cat's offset inside it, and where the bubble goes.
@@ -75,4 +93,4 @@ function layoutWindow(cat, area, { width: minWidth = 260, zone = 84 } = {}) {
   return { window: { x, y, width, height }, cat: { x: cat.x - x, y: cat.y - y }, below };
 }
 
-module.exports = { SIZE_LIMITS, stepSize, bottomCenter, boundsFromBottomCenter, resizeAnchored, resizeFromCorner, pickWorkArea, clampToWorkAreas, layoutWindow };
+module.exports = { SIZE_LIMITS, stepSize, bottomCenter, boundsFromBottomCenter, resizeAnchored, resizeFromCorner, staggerSpot, pickWorkArea, clampToWorkAreas, layoutWindow };

@@ -158,3 +158,15 @@ test('subagent events do not replace the transcript path', () => {
   t.send('PreToolUse', { toolName: 'Read', transcriptPath: '/home/.claude/sub.jsonl', agentId: 'a1' });
   assert.equal(t.s().transcriptPath, '/home/.claude/main.jsonl');
 });
+
+test('restore creates a session found open at startup, once', () => {
+  const t = setup();
+  t.store.restore({ id: 's1', cwd: '/p/app', project: 'app', busy: false, text: '**Done** here', transcriptPath: '/x.jsonl' });
+  assert.equal(t.s().state, 'done');
+  assert.equal(t.s().text, 'Done here');
+  t.store.restore({ id: 's1', cwd: '/p/app', project: 'app', busy: true });
+  assert.equal(t.s().state, 'done'); // already known: ignored
+  t.store.restore({ id: 's2', cwd: '/p/b', project: 'b', busy: true });
+  assert.equal(t.store.get('s2').state, 'coding');
+  assert.equal(t.store.get('s2').text, 'Working...');
+});

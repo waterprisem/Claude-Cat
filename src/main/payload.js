@@ -44,4 +44,4 @@ function sanitize(raw) {
   return evt;
 }
 
-module.exports = { sanitize };
+module.exports = { sanitize, SESSION_ID };
