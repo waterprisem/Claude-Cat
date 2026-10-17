@@ -1,6 +1,7 @@
 // The cat window: transparent, always on top, on every Space, never focused.
 // Clicks on transparent pixels pass through; the cat can be dragged and resized.
-// Phase 2/3 shows one cat for the most recently active session.
+// The window is bigger than the cat to leave room for the hover speech bubble.
+// Phase 2-4 shows one cat for the most recently active session.
 
 const fs = require('node:fs');
 const path = require('node:path');
@@ -8,13 +9,15 @@ const { pathToFileURL } = require('node:url');
 const { BrowserWindow, ipcMain, nativeImage, screen } = require('electron');
 const config = require('./config');
 const geometry = require('./geometry');
-const { maskFromBitmap, unionMasks, dilate } = require('./hitMask');
+const { maskFromBitmap, unionMasks, dilate, maskExtent } = require('./hitMask');
+const { clip } = require('./text');
 
 const ROOT = path.join(__dirname, '..', '..');
 const PROCESSED = path.join(ROOT, 'assets', 'processed');
 const MARGIN = 24;
 const MASK_GRID = 64;
-const SAVE_DELAY_MS = 500;
+const BUBBLE = { width: 260, zone: 84 }; // room for the speech bubble beside the cat
+const BUBBLE_TEXT_MAX = 120;
 
 function loadFrames() {
   const manifest = JSON.parse(fs.readFileSync(path.join(PROCESSED, 'manifest.json'), 'utf8'));
@@ -27,15 +30,15 @@ function loadFrames() {
     const { width, height } = img.getSize();
     return maskFromBitmap(img.toBitmap(), width, height, MASK_GRID);
   });
-  const mask = Array.from(dilate(unionMasks(masks), MASK_GRID));
-  return { urls, mask };
+  const union = unionMasks(masks);
+  return { urls, mask: Array.from(dilate(union, MASK_GRID)), extent: maskExtent(union, MASK_GRID) };
 }
 
 function workAreas() {
   return screen.getAllDisplays().map((d) => d.workArea);
 }
 
-function defaultBounds(size) {
+function defaultCatBounds(size) {
   const { workArea } = screen.getPrimaryDisplay();
   return { x: workArea.x + workArea.width - size - MARGIN, y: workArea.y + workArea.height - size - MARGIN, width: size, height: size };
 }
@@ -97,20 +100,38 @@ function createCatController(settings) {
   const positions = { ...settings.positions }; // project -> bottom-center point
   let size = geometry.stepSize(settings.catSize, 0);
   let win = null;
+  let catBounds = null; // the cat's square in screen coordinates
+  let layout = null; // { window, cat: offset inside the window, below }
   let ready = false;
   let shownId = null;
   let shownProject = null;
   let drag = null;
+  let resizing = null; // { bounds, cursor } while the corner grip is dragged
   let saveTimer = null;
 
   const snapshot = (s) => ({ id: s.id, state: s.state, text: s.text, project: s.project });
   const fromCat = (event) => win && event.sender === win.webContents;
 
-  function boundsFor(project) {
+  function catBoundsFor(project) {
     const saved = positions[project];
-    const b = saved ? geometry.boundsFromBottomCenter(saved, size) : defaultBounds(size);
-    return geometry.clampToWorkAreas(b, workAreas());
+    return saved ? geometry.boundsFromBottomCenter(saved, size) : defaultCatBounds(size);
   }
+
+  function sendLayout() {
+    if (!win || !ready || !layout) return;
+    const { window: w, cat, below } = layout;
+    win.webContents.send('cat:layout', { cat: { ...cat, size }, below, width: w.width, height: w.height });
+  }
+
+  // Keeps the cat on screen, then fits the window (cat + bubble zone) around it.
+  function place(cat) {
+    const areas = workAreas();
+    catBounds = geometry.clampToWorkAreas(cat, areas);
+    layout = geometry.layoutWindow(catBounds, areas.length ? geometry.pickWorkArea(catBounds, areas) : null, BUBBLE);
+    sendLayout();
+    if (win) win.setBounds(layout.window);
+  }
+
 
   function saveNow() {
     clearTimeout(saveTimer);
@@ -121,25 +142,28 @@ function createCatController(settings) {
       console.error(`[claude-cat] could not save config: ${err.message}`);
     }
   }
-  function scheduleSave() {
-    clearTimeout(saveTimer);
-    saveTimer = setTimeout(saveNow, SAVE_DELAY_MS);
+
+  // Where the cat is now, following the window while it is dragged.
+  function catFromWindow() {
+    const [x, y] = win.getPosition();
+    return { x: x + layout.cat.x, y: y + layout.cat.y, width: size, height: size };
   }
 
   function rememberPosition() {
-    if (win && shownProject) positions[shownProject] = geometry.bottomCenter(win.getBounds());
+    if (catBounds && shownProject) positions[shownProject] = geometry.bottomCenter(catBounds);
   }
 
   function send(s) {
     shownId = s.id;
-    if (win && s.project !== shownProject && !drag) win.setBounds(boundsFor(s.project));
+    if (win && s.project !== shownProject && !drag && !resizing) place(catBoundsFor(s.project));
     shownProject = s.project;
-    if (win && ready) win.webContents.send('cat:state', { state: s.state, text: s.text, project: s.project });
+    if (win && ready) win.webContents.send('cat:state', { state: s.state, text: clip(s.text || '', BUBBLE_TEXT_MAX), project: s.project });
   }
 
   function ensureWindow(project) {
     if (win) return;
-    win = createWindow(boundsFor(project));
+    place(catBoundsFor(project));
+    win = createWindow(layout.window);
     shownProject = project;
     ready = false;
     win.once('ready-to-show', () => win && win.showInactive());
@@ -147,6 +171,7 @@ function createCatController(settings) {
       win = null;
       ready = false;
       drag = null;
+      resizing = null;
       shownProject = null;
     });
   }
@@ -155,7 +180,8 @@ function createCatController(settings) {
     'cat:ready'(event) {
       if (!fromCat(event)) return;
       ready = true;
-      win.webContents.send('cat:init', { frames: assets.urls, mask: assets.mask, grid: MASK_GRID, timing, limits: geometry.SIZE_LIMITS });
+      win.webContents.send('cat:init', { frames: assets.urls, mask: assets.mask, grid: MASK_GRID, extent: assets.extent, timing });
+      sendLayout();
       const latest = [...sessions.values()].pop();
       if (latest) send(latest);
     },
@@ -165,7 +191,7 @@ function createCatController(settings) {
     },
     // Drag: main tracks the real cursor so multiple displays and scaling are handled.
     'cat:drag-start'(event) {
-      if (!fromCat(event)) return;
+      if (!fromCat(event) || resizing) return;
       const [x, y] = win.getPosition();
       drag = { x, y, cursor: screen.getCursorScreenPoint() };
     },
@@ -177,18 +203,28 @@ function createCatController(settings) {
     'cat:drag-end'(event) {
       if (!fromCat(event) || !drag) return;
       drag = null;
-      win.setBounds(geometry.clampToWorkAreas(win.getBounds(), workAreas()));
+      place(catFromWindow());
       rememberPosition();
       saveNow();
     },
-    'cat:resize'(event, dir) {
-      if (!fromCat(event) || (dir !== 1 && dir !== -1) || drag) return;
-      const next = geometry.stepSize(size, dir);
-      if (next === size) return;
-      size = next;
-      win.setBounds(geometry.clampToWorkAreas(geometry.resizeAnchored(win.getBounds(), size), workAreas()));
+    // Resize: the grip in the bottom-right corner, with the cat's top-left fixed.
+    'cat:resize-start'(event) {
+      if (!fromCat(event) || drag) return;
+      resizing = { bounds: { ...catBounds }, cursor: screen.getCursorScreenPoint() };
+    },
+    'cat:resize-move'(event) {
+      if (!fromCat(event) || !resizing) return;
+      const c = screen.getCursorScreenPoint();
+      const next = geometry.resizeFromCorner(resizing.bounds, c.x - resizing.cursor.x, c.y - resizing.cursor.y);
+      if (next.width === size) return;
+      size = next.width;
+      place(next);
+    },
+    'cat:resize-end'(event) {
+      if (!fromCat(event) || !resizing) return;
+      resizing = null;
       rememberPosition();
-      scheduleSave();
+      saveNow();
     },
   };
   for (const [channel, fn] of Object.entries(handlers)) ipcMain.on(channel, fn);

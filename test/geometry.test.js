@@ -41,3 +41,42 @@ test('clampToWorkAreas brings a lost window to the nearest display', () => {
   assert.deepEqual(g.clampToWorkAreas(lost, [main, right]), { x: 3232, y: 300, width: 128, height: 128 });
   assert.deepEqual(g.clampToWorkAreas(lost, []), lost);
 });
+
+test('layoutWindow puts the bubble zone above the cat, centered', () => {
+  const cat = { x: 600, y: 500, width: 128, height: 128 };
+  const l = g.layoutWindow(cat, main);
+  assert.deepEqual(l.window, { x: 534, y: 416, width: 260, height: 212 });
+  assert.deepEqual(l.cat, { x: 66, y: 84 });
+  assert.equal(l.below, false);
+});
+
+test('layoutWindow flips the zone below near the top of the screen', () => {
+  const l = g.layoutWindow({ x: 600, y: 60, width: 128, height: 128 }, main);
+  assert.equal(l.below, true);
+  assert.deepEqual(l.window, { x: 534, y: 60, width: 260, height: 212 });
+  assert.deepEqual(l.cat, { x: 66, y: 0 });
+});
+
+test('layoutWindow shifts the window sideways to stay on screen', () => {
+  const left = g.layoutWindow({ x: 0, y: 500, width: 64, height: 64 }, main);
+  assert.equal(left.window.x, 0);
+  assert.deepEqual(left.cat, { x: 0, y: 84 });
+  const right = g.layoutWindow({ x: 1312, y: 500, width: 128, height: 128 }, main);
+  assert.equal(right.window.x, 1440 - 260);
+  assert.equal(right.window.x + right.cat.x, 1312);
+  // A cat wider than the minimum sets the window width.
+  assert.equal(g.layoutWindow({ x: 600, y: 500, width: 256, height: 256 }, main, { width: 200 }).window.width, 256);
+});
+
+test('pickWorkArea prefers overlap, then distance', () => {
+  assert.equal(g.pickWorkArea({ x: 1500, y: 10, width: 10, height: 10 }, [main, right]), right);
+  assert.equal(g.pickWorkArea({ x: -900, y: 10, width: 10, height: 10 }, [main, right]), main);
+});
+
+test('resizeFromCorner keeps the top-left and snaps the size', () => {
+  const b = { x: 100, y: 100, width: 128, height: 128 };
+  assert.deepEqual(g.resizeFromCorner(b, 32, 32), { x: 100, y: 100, width: 160, height: 160 });
+  assert.equal(g.resizeFromCorner(b, 10, 0).width, 128); // a small move snaps back
+  assert.equal(g.resizeFromCorner(b, -500, -500).width, 64);
+  assert.equal(g.resizeFromCorner(b, 500, 500).width, 256);
+});

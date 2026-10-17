@@ -10,46 +10,103 @@ body {
   cursor: default;
 }
 
+/* Positioned over the cat's square by cat.js; the rest of the window is the bubble zone. */
 #cat {
+  position: absolute;
   display: block;
-  width: 100%;
-  height: 100%;
 }
 
-/* +/- size buttons, shown on hover */
-#controls {
+/* Resize grip by the cat's bottom-right, shown on hover. Faint until pointed at. */
+#grip {
   position: absolute;
-  top: 2px;
-  left: 2px;
-  display: flex;
-  gap: 4px;
+  box-sizing: border-box;
+  width: 16px;
+  height: 16px;
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  border-radius: 5px;
+  /* two short diagonal strokes on a translucent tile */
+  background:
+    linear-gradient(
+      135deg,
+      transparent 52%, rgba(0, 0, 0, 0.4) 52%, rgba(0, 0, 0, 0.4) 59%,
+      transparent 59%, transparent 70%, rgba(0, 0, 0, 0.4) 70%, rgba(0, 0, 0, 0.4) 77%,
+      transparent 77%
+    ),
+    rgba(255, 255, 255, 0.55);
+  opacity: 0;
+  pointer-events: none;
+  cursor: nwse-resize;
+  transition: opacity 120ms ease-out;
+}
+
+body.hover #grip {
+  opacity: 0.6;
+  pointer-events: auto;
+}
+
+body.hover #grip:hover,
+body.resizing #grip {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* Hover speech bubble. cat.js sets its position and the tail offset (--tail). */
+#bubble {
+  position: absolute;
+  left: 0;
+  top: 0;
+  box-sizing: border-box;
+  min-width: 120px;
+  max-width: 240px;
+  padding: 5px 10px 6px;
+  border: 1px solid rgba(0, 0, 0, 0.16);
+  border-radius: 10px;
+  background: #fff;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.14);
+  color: #222;
+  font: 12px/16px -apple-system, system-ui, sans-serif;
   opacity: 0;
   pointer-events: none;
   transition: opacity 120ms ease-out;
 }
 
-body.hover #controls {
+body.hover #bubble.ready {
   opacity: 1;
   pointer-events: auto;
 }
 
-#controls button {
-  width: 18px;
-  height: 18px;
-  padding: 0;
-  border: 1px solid rgba(0, 0, 0, 0.25);
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.92);
-  color: #333;
-  font: 600 13px/1 -apple-system, system-ui, sans-serif;
-  outline: none;
-  cursor: default;
+#project {
+  overflow: hidden;
+  color: #8a8a8a;
+  font-size: 10px;
+  line-height: 13px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
 }
 
-#controls button:active:not(:disabled) {
-  background: #e6e6e6;
+#text {
+  max-height: 32px; /* 2 lines; cat.js fits the text, this is only a safety net */
+  overflow: hidden;
+  overflow-wrap: anywhere;
 }
 
-#controls button:disabled {
-  opacity: 0.35;
+/* Tail: a rotated square on the edge facing the cat. */
+#bubble::after {
+  content: '';
+  position: absolute;
+  left: var(--tail, 50%);
+  bottom: -5px;
+  width: 8px;
+  height: 8px;
+  margin-left: -5px;
+  border: solid rgba(0, 0, 0, 0.16);
+  border-width: 0 1px 1px 0;
+  background: #fff;
+  transform: rotate(45deg);
+}
+
+#bubble.below::after {
+  top: -5px;
+  bottom: auto;
+  border-width: 1px 0 0 1px;
 }

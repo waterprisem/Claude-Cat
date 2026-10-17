@@ -36,4 +36,22 @@ function dilate(mask, grid) {
   return out;
 }
 
-module.exports = { maskFromBitmap, unionMasks, dilate };
+// Where the drawing sits inside its square, as fractions of the side:
+// top and bottom of the art, and its outermost bottom-right point (for the resize grip).
+function maskExtent(mask, grid) {
+  let top = grid;
+  let bottom = -1;
+  let corner = null;
+  for (let y = 0; y < grid; y++) {
+    for (let x = 0; x < grid; x++) {
+      if (!mask[y * grid + x]) continue;
+      top = Math.min(top, y);
+      bottom = Math.max(bottom, y);
+      if (!corner || x + y > corner.x + corner.y || (x + y === corner.x + corner.y && y > corner.y)) corner = { x, y };
+    }
+  }
+  if (!corner) return null;
+  return { top: top / grid, bottom: (bottom + 1) / grid, corner: { x: (corner.x + 1) / grid, y: (corner.y + 1) / grid } };
+}
+
+module.exports = { maskFromBitmap, unionMasks, dilate, maskExtent };

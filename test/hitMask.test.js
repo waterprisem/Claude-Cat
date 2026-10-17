@@ -1,6 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
-const { maskFromBitmap, unionMasks, dilate } = require('../src/main/hitMask');
+const { maskFromBitmap, unionMasks, dilate, maskExtent } = require('../src/main/hitMask');
 const { hitMask } = require('../src/renderer/hit');
 
 // w*h RGBA buffer, opaque where fn(x, y) is true.
@@ -40,4 +40,12 @@ test('hitMask maps window coordinates onto the grid', () => {
   assert.equal(hitMask(mask, 2, 128, 10, 128, 128), false);
   assert.equal(hitMask(null, 2, 100, 10, 128, 128), false);
   assert.equal(hitMask(mask, 2, 100, 10, 0, 0), false);
+});
+
+test('maskExtent finds the top, bottom and bottom-right point of the art', () => {
+  // 4x4 grid: cells (1,0), (0,2), (2,2), (3,1)
+  const mask = new Uint8Array(16);
+  for (const [x, y] of [[1, 0], [0, 2], [2, 2], [3, 1]]) mask[y * 4 + x] = 1;
+  assert.deepEqual(maskExtent(mask, 4), { top: 0, bottom: 0.75, corner: { x: 0.75, y: 0.75 } });
+  assert.equal(maskExtent(new Uint8Array(16), 4), null);
 });

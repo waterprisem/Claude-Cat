@@ -17,16 +17,16 @@ Work through the phases in order, one phase per session. Tick the checkboxes as 
 | State | Animation | Bubble when NOT hovered | Bubble when hovered |
 |---|---|---|---|
 | `coding` | coding loop (3 frames) | none | what Claude is doing right now, e.g. "Editing App.tsx" |
-| `waiting` (needs the user) | idle | a small "..." bubble | the notification message, e.g. "Claude needs your permission to use Bash" |
-| `done` (finished) | idle (same as waiting) | a small "..." bubble | head of Claude's last message (first ~2 lines, truncated cleanly) |
+| `waiting` (needs the user) | idle (art has "..." drawn in) | none | the notification message, e.g. "Claude needs your permission to use Bash" |
+| `done` (finished) | idle (same as waiting) | none | head of Claude's last message (first ~2 lines, truncated cleanly) |
 
-`done` and `waiting` look identical in the sprite and the "..." bubble. Only the hover text differs.
+`done` and `waiting` look identical: the idle art already has "..." drawn in it, so there is no separate "..." bubble (decided in Phase 4). Only the hover text differs.
 
 **One cat per session.** A cat appears when a session's first event arrives and disappears on `SessionEnd`. The project name (basename of `cwd`) is shown as a tiny label at the top of the hover bubble. "Choosing the project" means a tray menu where each known project can be enabled, muted or pinned, so the user can decide which sessions get a cat.
 
 **Interaction:**
 - Drag the cat anywhere. Position is remembered per project.
-- On hover, small `+` and `-` buttons appear. They change the cat size a little per click. Default 128px, range 64 to 256px, step 16px. Size is remembered (global, not per cat).
+- On hover, a small resize grip appears in the cat's bottom-right corner; dragging it resizes the cat with its top-left fixed. (Phase 3 used `+`/`-` buttons; replaced in Phase 4 because they covered the bubble.) Default 128px, range 64 to 256px, step 16px. Size is remembered (global, not per cat).
 - Transparent areas of the window must be click-through. Only the cat itself, the bubble and the hover buttons capture the mouse.
 - Always on top, visible on all Spaces and over fullscreen apps, no Dock icon, tray icon only.
 - Should not be disruptive: no focus stealing, no sounds, no notifications, no bouncing.
@@ -138,8 +138,8 @@ Short, human, max about 40 characters, never leaking long commands or file conte
 
 ### Bubble rules
 
-- Never show the bubble in `coding` state unless hovered.
-- In `waiting` and `done`, always show the small "..." bubble, and replace it with the full text on hover.
+- The bubble shows only on hover, in every state. The "..." drawn in the idle art stands in for the old "..." bubble.
+- Empty text falls back to "Thinking..." (coding), "Claude needs your attention" (waiting) or "Ready for your next prompt" (done, before any reply).
 - Hover text: max 2 lines (about 120 chars), ellipsis on a word boundary. Selecting or copying text is not needed.
 - Project name appears as a tiny muted label above the text.
 
@@ -185,11 +185,13 @@ _Verified 2026-10-16:_ the cat hides for about a second during the Space-switch 
 **Done when:** the user can drag and resize the cat, clicking next to it hits the app underneath, and a restart preserves everything.
 
 ### Phase 4: Speech bubbles
-- [ ] Bubble rendered above the cat, flips below if too close to the top of the screen
-- [ ] Rules from "Bubble rules" above, including the "..." bubble for waiting/done
-- [ ] Smooth but subtle fade in and out (under 150 ms), no layout jumping when text changes
+- [x] Bubble rendered above the cat, flips below if too close to the top of the screen (see note below)
+- [x] Rules from "Bubble rules" above (hover only; the "..." is in the art)
+- [x] Smooth but subtle fade in and out (under 150 ms), no layout jumping when text changes
 
 **Done when:** hovering during a real session shows live actions while coding, the right message when waiting, and the last-message head when done.
+
+_Notes from Phase 4 testing (2026-10-16):_ the window includes an 84px bubble zone above the cat, and macOS keeps windows below the menu bar, so a dragged cat stops just under it with the bubble still above. The flip to below only happens for a cat placed higher by other means. A version that relaid the window during the drag broke dragging and was reverted; the user is fine with this. Esc detection by watching the transcript for "[Request interrupted by user" is planned as a follow-up.
 
 ### Phase 5: Multiple sessions and project control
 - [ ] One window per `session_id`, spawned at a saved or default position (stagger so they do not overlap)
