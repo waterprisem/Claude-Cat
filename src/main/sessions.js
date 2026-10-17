@@ -31,11 +31,12 @@ class SessionStore extends EventEmitter {
     let s = this.sessions.get(evt.sessionId);
     const isNew = !s;
     if (isNew) {
-      s = { id: evt.sessionId, project: evt.project, cwd: evt.cwd, state: 'done', text: '', lastEventAt: 0, seq: 0 };
+      s = { id: evt.sessionId, project: evt.project, cwd: evt.cwd, state: 'done', text: '', lastEventAt: 0, seq: 0, turn: 0, transcriptPath: null };
       this.sessions.set(s.id, s);
     }
     s.lastEventAt = this.now();
     s.seq++;
+    if (evt.transcriptPath && !evt.agentId) s.transcriptPath = evt.transcriptPath;
     if (evt.cwd && !s.cwd) {
       s.cwd = evt.cwd;
       s.project = evt.project;
@@ -46,6 +47,7 @@ class SessionStore extends EventEmitter {
       case 'SessionStart':
         return this.set(s, 'done', '', isNew);
       case 'UserPromptSubmit':
+        s.turn++;
         return this.set(s, 'coding', 'Thinking...', isNew);
       case 'PreToolUse':
         return this.set(s, 'coding', toolSummary(evt.toolName, evt.toolInput), isNew);
@@ -88,6 +90,12 @@ class SessionStore extends EventEmitter {
     s.state = state;
     s.text = text;
     this.emit('change', s);
+  }
+
+  // Esc seen in the transcript (Claude Code sends no hook event for it).
+  interrupted(id) {
+    const s = this.sessions.get(id);
+    if (s && s.state === 'coding') this.set(s, 'waiting', 'Interrupted');
   }
 
   remove(id) {

@@ -115,7 +115,7 @@ Events to register: `SessionStart`, `UserPromptSubmit`, `PreToolUse`, `PostToolU
 | `SessionEnd` | remove session and close its window |
 
 Edge cases to handle:
-- **Interrupt (Esc):** verified: Claude Code sends no event at all on Esc. If a session is `coding` and no event arrives for 120s (configurable), flip it to `waiting` with text "Stopped?".
+- **Interrupt (Esc):** verified: Claude Code sends no hook event on Esc, but it appends a user entry whose text starts with `[Request interrupted by user` to the transcript. While a session is `coding`, poll its transcript every second (`interruptPollMs`), read only appended lines, and flip to `waiting` "Interrupted" when that entry appears. Backup: if a session is `coding` and no event arrives for 120s (configurable), flip it to `waiting` with text "Stopped?".
 - **Killed terminal:** `SessionEnd` may never fire. Remove sessions that have had no events for 6 hours (configurable).
 - **Transcript timing:** the transcript file may not be fully flushed when `Stop` fires. Read it with a short delay and one retry. Parse defensively (JSONL, skip bad lines, find the last assistant entry with text content). If anything fails, fall back to "Done".
 - **Unknown session:** any event from an unseen `session_id` creates the session (the app may have started mid-session).
@@ -191,7 +191,7 @@ _Verified 2026-10-16:_ the cat hides for about a second during the Space-switch 
 
 **Done when:** hovering during a real session shows live actions while coding, the right message when waiting, and the last-message head when done.
 
-_Notes from Phase 4 testing (2026-10-16):_ the window includes an 84px bubble zone above the cat, and macOS keeps windows below the menu bar, so a dragged cat stops just under it with the bubble still above. The flip to below only happens for a cat placed higher by other means. A version that relaid the window during the drag broke dragging and was reverted; the user is fine with this. Esc detection by watching the transcript for "[Request interrupted by user" is planned as a follow-up.
+_Notes from Phase 4 testing (2026-10-16):_ the window includes an 84px bubble zone above the cat, and macOS keeps windows below the menu bar, so a dragged cat stops just under it with the bubble still above. The flip to below only happens for a cat placed higher by other means. A version that relaid the window during the drag broke dragging and was reverted; the user is fine with this. Esc detection by watching the transcript was added right after Phase 4.
 
 ### Phase 5: Multiple sessions and project control
 - [ ] One window per `session_id`, spawned at a saved or default position (stagger so they do not overlap)
@@ -238,7 +238,7 @@ Verified on 2026-10-16 with Claude Code 2.1.287 against `events.log` from real s
 Observed behavior:
 - **Permission prompt:** `PreToolUse` → `PermissionRequest` (within ~40 ms) → `Notification` `permission_prompt` with the generic message "Claude needs your permission" (~6 s later) → `PostToolUse` after approval.
 - **Finished turn:** `Stop` always carried `last_assistant_message`; the transcript fallback was never needed. `Notification` `idle_prompt` ("Claude is waiting for your input") follows ~60 s later.
-- **Esc interrupt:** no event at all; the next event is the user's next `UserPromptSubmit`. The 120 s "Stopped?" timeout is the only signal.
+- **Esc interrupt:** no hook event at all; the next event is the user's next `UserPromptSubmit`. The transcript does get a main-thread `type: "user"` entry with a text block `[Request interrupted by user]` (or `… for tool use]` when Esc hits during a tool). That entry is what the app watches for. Exception, verified 2026-10-17: Esc while Claude is still thinking (before any tool call or text) writes nothing to the transcript; Claude Code just restores the prompt to the input box. Only the 120 s timeout catches that case.
 - **Already-open sessions** picked up newly installed hooks without a restart.
 - `SubagentStop` can arrive after the main `Stop` (background helpers), and can be the first event seen for a session.
 - Not yet seen: `StopFailure`, and `is_interrupt: true`.

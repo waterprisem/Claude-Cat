@@ -11,7 +11,8 @@ const configPath = path.join(dataDir, 'config.json');
 
 const DEFAULTS = Object.freeze({
   port: 47821,
-  interruptTimeoutMs: 120 * 1000, // coding with no events -> "Stopped?"
+  interruptTimeoutMs: 120 * 1000, // coding with no events -> "Stopped?" (backup for Esc detection)
+  interruptPollMs: 1000, // how often a coding session's transcript is checked for Esc
   staleSessionMs: 6 * 60 * 60 * 1000, // no events at all -> remove session
   tickIntervalMs: 5 * 1000,
   transcriptDelayMs: 300,

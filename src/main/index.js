@@ -6,6 +6,7 @@ const { app, Menu, Tray, nativeImage, shell } = require('electron');
 const config = require('./config');
 const { createEventLog } = require('./eventLog');
 const hooksInstaller = require('./hooksInstaller');
+const { createInterruptWatcher } = require('./interruptWatch');
 const { sanitize } = require('./payload');
 const server = require('./server');
 const { SessionStore } = require('./sessions');
@@ -45,12 +46,20 @@ function startPipeline() {
     readTranscript: (file) => lastAssistantText(file, { delayMs: settings.transcriptDelayMs }),
   });
 
+  const interrupts = createInterruptWatcher({
+    intervalMs: settings.interruptPollMs,
+    onInterrupt: (id) => store.interrupted(id),
+  });
+
   store.on('change', (s) => {
     console.log(`[${s.project}] ${s.state}: ${head(s.text, 120) || '...'}`);
     cats.show(s);
+    if (s.state === 'coding' && s.transcriptPath) interrupts.watch(s.id, s.transcriptPath, s.turn);
+    else interrupts.unwatch(s.id);
   });
   store.on('remove', (id) => {
     console.log(`[claude-cat] session ended: ${id}`);
+    interrupts.unwatch(id);
     cats.remove(id);
   });
   setInterval(() => store.tick(), settings.tickIntervalMs).unref();

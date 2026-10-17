@@ -137,3 +137,24 @@ test('late transcript read is dropped if newer events arrived', async () => {
   assert.equal(t.s().state, 'coding');
   assert.equal(t.s().text, 'Thinking...');
 });
+
+test('Esc seen in the transcript flips coding to waiting, and only coding', () => {
+  const t = setup();
+  t.send('UserPromptSubmit', { transcriptPath: '/home/.claude/x.jsonl' });
+  assert.equal(t.s().turn, 1);
+  assert.equal(t.s().transcriptPath, '/home/.claude/x.jsonl');
+  t.store.interrupted('s1');
+  assert.equal(t.s().state, 'waiting');
+  assert.equal(t.s().text, 'Interrupted');
+  t.send('Stop', { lastAssistantMessage: 'ok' });
+  t.store.interrupted('s1');
+  assert.equal(t.s().state, 'done');
+  t.store.interrupted('nope'); // unknown session: ignored
+});
+
+test('subagent events do not replace the transcript path', () => {
+  const t = setup();
+  t.send('UserPromptSubmit', { transcriptPath: '/home/.claude/main.jsonl' });
+  t.send('PreToolUse', { toolName: 'Read', transcriptPath: '/home/.claude/sub.jsonl', agentId: 'a1' });
+  assert.equal(t.s().transcriptPath, '/home/.claude/main.jsonl');
+});
