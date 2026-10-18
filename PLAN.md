@@ -22,7 +22,7 @@ Work through the phases in order, one phase per session. Tick the checkboxes as 
 
 `done` and `waiting` look identical: the idle art already has "..." drawn in it, so there is no separate "..." bubble (decided in Phase 4). Only the hover text differs.
 
-**One cat per session.** A cat appears when a session's first event arrives and disappears on `SessionEnd`. The project name (basename of `cwd`) is shown as a tiny label at the top of the hover bubble. "Choosing the project" means a tray menu where each known project can be enabled, muted or pinned, so the user can decide which sessions get a cat.
+**One cat per session.** A cat appears when a session's first event arrives and disappears on `SessionEnd`. The project name (basename of `cwd`) is shown as a small tag at the cat's bottom-left. "Choosing the project" means a tray menu where each known project can be enabled, muted or pinned, so the user can decide which sessions get a cat.
 
 **Interaction:**
 - Drag the cat anywhere. Position is remembered per project.
@@ -141,8 +141,8 @@ Short, human, max about 40 characters, never leaking long commands or file conte
 
 - The bubble shows only on hover, in every state. The "..." drawn in the idle art stands in for the old "..." bubble.
 - Empty text falls back to "Thinking..." (coding), "Claude needs your attention" (waiting) or "Ready for your next prompt" (done, before any reply).
-- Hover text: max 2 lines (about 120 chars), ellipsis on a word boundary. Selecting or copying text is not needed.
-- Project name appears as a tiny muted label above the text.
+- Hover text: max 2 lines, ellipsis on a word boundary. If the text was cut short, clicking the bubble expands it to up to 10 lines (the window grows for it while open); clicking again or moving the pointer away collapses it. Selecting or copying text is not needed.
+- The project name is a small translucent tag at the cat's bottom-left, always shown, not part of the bubble.
 
 ---
 

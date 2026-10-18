@@ -42,10 +42,10 @@ test('hitMask maps window coordinates onto the grid', () => {
   assert.equal(hitMask(mask, 2, 100, 10, 0, 0), false);
 });
 
-test('maskExtent finds the top, bottom and bottom-right point of the art', () => {
+test('maskExtent finds the top, bottom, left and bottom-right point of the art', () => {
   // 4x4 grid: cells (1,0), (0,2), (2,2), (3,1)
   const mask = new Uint8Array(16);
   for (const [x, y] of [[1, 0], [0, 2], [2, 2], [3, 1]]) mask[y * 4 + x] = 1;
-  assert.deepEqual(maskExtent(mask, 4), { top: 0, bottom: 0.75, corner: { x: 0.75, y: 0.75 } });
+  assert.deepEqual(maskExtent(mask, 4), { top: 0, bottom: 0.75, left: 0, corner: { x: 0.75, y: 0.75 } });
   assert.equal(maskExtent(new Uint8Array(16), 4), null);
 });

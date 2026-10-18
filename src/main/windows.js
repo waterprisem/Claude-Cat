@@ -14,7 +14,7 @@ const ROOT = path.join(__dirname, '..', '..');
 const PROCESSED = path.join(ROOT, 'assets', 'processed');
 const MARGIN = 24;
 const MASK_GRID = 64;
-const CHANNELS = ['cat:ready', 'cat:interactive', 'cat:drag-start', 'cat:drag-move', 'cat:drag-end', 'cat:resize-start', 'cat:resize-move', 'cat:resize-end'];
+const CHANNELS = ['cat:ready', 'cat:interactive', 'cat:drag-start', 'cat:drag-move', 'cat:drag-end', 'cat:resize-start', 'cat:resize-move', 'cat:resize-end', 'cat:bubble-zone'];
 
 function loadFrames() {
   const manifest = JSON.parse(fs.readFileSync(path.join(PROCESSED, 'manifest.json'), 'utf8'));

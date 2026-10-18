@@ -75,17 +75,32 @@ body.hover #bubble.ready {
   pointer-events: auto;
 }
 
-#project {
+/* Clicking a bubble whose text was cut short shows more of it. */
+#bubble.more {
+  cursor: pointer;
+}
+
+/* Project name tag at the cat's bottom-left. cat.js places it and sets max-width. */
+#tag {
+  position: absolute;
+  box-sizing: border-box;
+  padding: 1px 6px 2px;
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.45);
+  color: #fff;
+  font: 10px/13px -apple-system, system-ui, sans-serif;
   overflow: hidden;
-  color: #8a8a8a;
-  font-size: 10px;
-  line-height: 13px;
   white-space: nowrap;
   text-overflow: ellipsis;
+  pointer-events: none;
+}
+
+#tag[hidden] {
+  display: none;
 }
 
 #text {
-  max-height: 32px; /* 2 lines; cat.js fits the text, this is only a safety net */
+  max-height: 32px; /* cat.js sets this per line count and fits the text; only a safety net */
   overflow: hidden;
   overflow-wrap: anywhere;
 }

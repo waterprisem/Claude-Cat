@@ -8,7 +8,8 @@ const geometry = require('./geometry');
 const { clip } = require('./text');
 
 const BUBBLE = { width: 260, zone: 84 }; // room for the speech bubble beside the cat
-const BUBBLE_TEXT_MAX = 120;
+const ZONE_MAX = 260; // an expanded bubble asks for a taller zone, up to this
+const BUBBLE_TEXT_MAX = 500;
 
 function workAreas() {
   return screen.getAllDisplays().map((d) => d.workArea);
@@ -64,6 +65,7 @@ function createCat({ init, catBounds: startBounds, size: startSize, onMoved, onR
   let resizing = null; // { bounds, cursor } while the corner grip is dragged
   let state = null; // last state sent (or to send once ready)
   let win = null;
+  let zone = BUBBLE.zone; // grows while the bubble is expanded
 
   function sendLayout() {
     if (!win || !ready || !layout) return;
@@ -75,7 +77,7 @@ function createCat({ init, catBounds: startBounds, size: startSize, onMoved, onR
   function place(cat) {
     const areas = workAreas();
     catBounds = geometry.clampToWorkAreas(cat, areas);
-    layout = geometry.layoutWindow(catBounds, areas.length ? geometry.pickWorkArea(catBounds, areas) : null, BUBBLE);
+    layout = geometry.layoutWindow(catBounds, areas.length ? geometry.pickWorkArea(catBounds, areas) : null, { ...BUBBLE, zone });
     sendLayout();
     if (win) win.setBounds(layout.window);
   }
@@ -108,9 +110,21 @@ function createCat({ init, catBounds: startBounds, size: startSize, onMoved, onR
     'cat:interactive'(value) {
       if (typeof value === 'boolean') win.setIgnoreMouseEvents(!value, { forward: true });
     },
+    // The renderer asks for more room while its bubble is expanded, and gives it back.
+    'cat:bubble-zone'(value) {
+      if (drag || resizing || typeof value !== 'number' || !Number.isFinite(value)) return;
+      const next = Math.min(Math.max(Math.round(value), BUBBLE.zone), ZONE_MAX);
+      if (next === zone) return;
+      zone = next;
+      place(catBounds);
+    },
     // Drag: main tracks the real cursor so multiple displays and scaling are handled.
     'cat:drag-start'() {
       if (resizing) return;
+      if (zone !== BUBBLE.zone) {
+        zone = BUBBLE.zone;
+        place(catBounds);
+      }
       const [x, y] = win.getPosition();
       drag = { x, y, cursor: screen.getCursorScreenPoint() };
     },
@@ -128,6 +142,7 @@ function createCat({ init, catBounds: startBounds, size: startSize, onMoved, onR
     // Resize: the grip in the bottom-right corner, with the cat's top-left fixed.
     'cat:resize-start'() {
       if (drag) return;
+      zone = BUBBLE.zone;
       resizing = { bounds: { ...catBounds }, cursor: screen.getCursorScreenPoint() };
     },
     'cat:resize-move'() {

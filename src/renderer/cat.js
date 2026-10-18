@@ -9,7 +9,7 @@ const canvas = document.getElementById('cat');
 const ctx = canvas.getContext('2d');
 const grip = document.getElementById('grip');
 const bubble = document.getElementById('bubble');
-const bubbleProject = document.getElementById('project');
+const tag = document.getElementById('tag');
 const bubbleTextEl = document.getElementById('text');
 
 let frames = null; // { coding: ImageBitmap[], idle: ImageBitmap[] }
@@ -20,7 +20,7 @@ let current = null; // bitmap on screen
 let timer = null;
 let hit = null; // { mask, grid }
 // Where the drawing sits in its square (fractions); the art has wide empty margins.
-let extent = { top: 0.12, bottom: 0.85, corner: { x: 0.8, y: 0.85 } };
+let extent = { top: 0.12, bottom: 0.85, left: 0.15, corner: { x: 0.8, y: 0.85 } };
 let layout = null; // { cat: { x, y, size }, below, width, height }, from main
 let session = { state: 'done', text: '', project: '' };
 
@@ -76,7 +76,7 @@ window.cat.onInit(async (init) => {
 
 window.cat.onState((next) => {
   session = next;
-  renderBubble();
+  renderTag();
   setMode(modeFor(next.state));
 });
 
@@ -88,11 +88,24 @@ function setMode(next) {
 
 // --- Layout --------------------------------------------------------------------
 // The window holds the cat's square plus a zone above (or below) it for the bubble.
+// With the zone above, everything is placed from the window's bottom edge, so when
+// the window grows upward for an expanded bubble nothing moves on screen.
 
 const GRIP = 16;
 
 function px(el, props) {
   for (const [k, v] of Object.entries(props)) el.style[k] = `${Math.round(v)}px`;
+}
+
+// Puts el's top edge at window y `top` (el is `height` tall).
+function placeY(el, top, height) {
+  if (layout.below) {
+    el.style.bottom = 'auto';
+    px(el, { top });
+  } else {
+    el.style.top = 'auto';
+    px(el, { bottom: layout.height - top - height });
+  }
 }
 
 window.cat.onLayout((next) => {
@@ -102,38 +115,66 @@ window.cat.onLayout((next) => {
 
 function applyLayout() {
   const { x, y, size } = layout.cat;
-  px(canvas, { left: x, top: y, width: size, height: size });
+  px(canvas, { left: x, width: size, height: size });
+  placeY(canvas, y, size);
   // Just off the drawing's bottom-right point, kept inside the cat's square.
   const gx = Math.min(x + extent.corner.x * size - GRIP / 3, x + size - GRIP);
   const gy = Math.min(y + extent.corner.y * size - GRIP / 3, y + size - GRIP);
-  px(grip, { left: gx, top: gy });
+  px(grip, { left: gx });
+  placeY(grip, gy, GRIP);
+  // Name tag at the drawing's bottom-left.
+  px(tag, { left: x + extent.left * size, maxWidth: Math.max(size * 0.6, 48) });
+  placeY(tag, y + extent.bottom * size - tag.offsetHeight, tag.offsetHeight);
   bubble.classList.toggle('below', layout.below);
   fitCanvas();
   renderBubble();
 }
 
+function renderTag() {
+  tag.textContent = session.project || '';
+  tag.hidden = !session.project;
+  if (layout) applyLayout();
+}
+
 // --- Speech bubble -------------------------------------------------------------
+// Two lines normally. When the text is cut short, clicking the bubble shows up to
+// ten; main makes the window taller for it while it is open.
 
 const LINE_HEIGHT = 16;
-const MAX_LINES = 2;
+const LINES = 2;
+const LINES_EXPANDED = 10;
+const ZONE = 84; // matches BUBBLE.zone in main
 const TAIL = 6; // gap for the tail between bubble and cat
 const EDGE = 2;
+let expanded = false;
+let zoneAsked = ZONE;
+
+function askZone(next) {
+  if (next === zoneAsked) return;
+  zoneAsked = next;
+  window.cat.bubbleZone(next);
+}
 
 function renderBubble() {
   if (!layout) return;
-  bubbleProject.textContent = session.project || '';
+  const lines = expanded ? LINES_EXPANDED : LINES;
+  bubbleTextEl.style.maxHeight = `${LINE_HEIGHT * lines}px`;
   // Measure at the left edge so the full max-width is available.
   bubble.style.left = '0px';
   bubble.style.top = '0px';
   bubble.style.bottom = 'auto';
   const fits = (candidate) => {
     bubbleTextEl.textContent = candidate;
-    return bubbleTextEl.scrollHeight <= LINE_HEIGHT * MAX_LINES + 1;
+    return bubbleTextEl.scrollHeight <= LINE_HEIGHT * lines + 1;
   };
-  bubbleTextEl.textContent = fitText(bubbleText(session.state, session.text), fits);
+  const full = bubbleText(session.state, session.text);
+  const shown = fitText(full, fits);
+  bubbleTextEl.textContent = shown;
+  bubble.classList.toggle('more', expanded || shown !== full);
 
   const { x, y, size } = layout.cat;
   const w = bubble.offsetWidth;
+  const h = bubble.offsetHeight;
   const center = x + size / 2;
   const left = Math.min(Math.max(center - w / 2, EDGE), layout.width - w - EDGE);
   bubble.style.left = `${Math.round(left)}px`;
@@ -146,7 +187,21 @@ function renderBubble() {
     bubble.style.bottom = `${Math.round(layout.height - (y + size * extent.top) + TAIL)}px`;
   }
   bubble.classList.add('ready');
+
+  // Room needed for this bubble on either side of the cat (it may flip below).
+  const need = h + TAIL + EDGE - size * Math.min(extent.top, 1 - extent.bottom);
+  askZone(expanded ? Math.max(ZONE, Math.ceil(need)) : ZONE);
 }
+
+function setExpanded(value) {
+  if (value === expanded) return;
+  expanded = value;
+  renderBubble();
+}
+
+bubble.addEventListener('click', () => {
+  if (hovered && bubble.classList.contains('more')) setExpanded(!expanded);
+});
 
 // --- Hover, click-through ---------------------------------------------------
 // The window ignores the mouse except while the pointer is over the cat, the
@@ -164,9 +219,16 @@ function setInteractive(value) {
   window.cat.setInteractive(value);
 }
 
+const COLLAPSE_DELAY_MS = 150; // let the bubble fade out first
+
 function setHovered(value) {
   hovered = value;
   document.body.classList.toggle('hover', value);
+  if (!value) {
+    setTimeout(() => {
+      if (!hovered) setExpanded(false);
+    }, COLLAPSE_DELAY_MS);
+  }
 }
 
 function overCat(x, y) {
