@@ -14,8 +14,8 @@ It works through Claude Code hooks: each hook sends a small JSON message to the 
 ## Install
 
 ```sh
-git clone https://github.com/waterprisem/claude-cat.git
-cd claude-cat
+git clone https://github.com/waterprisem/Claude-Cat.git
+cd Claude-Cat
 npm install
 npm run dist
 ```
