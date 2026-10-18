@@ -104,3 +104,5 @@ Only one copy of the app runs at a time. Quit the built app before running `npm 
 © 2026 waterprisem. All rights reserved.
 
 The cat artwork (everything in `assets/`, and the frames and icons made from it) is original work by waterprisem. It may not be copied, changed, redistributed or used in other projects without permission.
+
+Claude and the Claude logo (the starburst drawn on the cat's laptop) are trademarks of Anthropic, PBC, and are not covered by the notice above. Claude Cat is an unofficial fan project and is not affiliated with or endorsed by Anthropic.
