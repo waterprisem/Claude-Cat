@@ -14,5 +14,6 @@ contextBridge.exposeInMainWorld('cat', {
   dragStart: () => ipcRenderer.send('cat:drag-start'),
   dragMove: () => ipcRenderer.send('cat:drag-move'),
   dragEnd: () => ipcRenderer.send('cat:drag-end'),
+  clicked: () => ipcRenderer.send('cat:click'),
   bubbleZone: (height) => ipcRenderer.send('cat:bubble-zone', Number(height)),
 });

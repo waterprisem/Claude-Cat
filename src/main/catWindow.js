@@ -55,8 +55,9 @@ function createWindow(bounds) {
 
 // init: the cat:init payload (frames, mask, timing), shared by all cats.
 // onMoved(cat) after a drag or resize; onResize(size) while the grip is dragged;
-// onResized() when it is let go; onClosed() if the window goes away.
-function createCat({ init, catBounds: startBounds, size: startSize, onMoved, onResize, onResized, onClosed }) {
+// onResized() when it is let go; onClick() when the cat is clicked; onClosed() if the
+// window goes away.
+function createCat({ init, catBounds: startBounds, size: startSize, onMoved, onResize, onResized, onClick, onClosed }) {
   let size = startSize;
   let catBounds = null; // the cat's square in screen coordinates
   let layout = null; // { window, cat: offset inside the window, below }
@@ -117,6 +118,10 @@ function createCat({ init, catBounds: startBounds, size: startSize, onMoved, onR
       if (next === zone) return;
       zone = next;
       place(catBounds);
+    },
+    // A click on the cat (not a drag): go to its session's terminal.
+    'cat:click'() {
+      if (!drag && !resizing) onClick();
     },
     // Drag: main tracks the real cursor so multiple displays and scaling are handled.
     'cat:drag-start'() {

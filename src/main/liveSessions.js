@@ -54,7 +54,7 @@ function findTranscript(sessionId, projectsDir) {
   return null;
 }
 
-function readLiveSessions({ root = CLAUDE_DIR, isAlive = processAlive } = {}) {
+function readLiveSessions({ root = CLAUDE_DIR, isAlive = processAlive, transcripts = true } = {}) {
   const dir = path.join(root, 'sessions');
   let names;
   try {
@@ -75,7 +75,7 @@ function readLiveSessions({ root = CLAUDE_DIR, isAlive = processAlive } = {}) {
     }
     const s = parseSessionFile(name, text);
     if (!s || !isAlive(s.pid)) continue;
-    out.push({ ...s, project: path.basename(s.cwd) || s.cwd, transcriptPath: findTranscript(s.sessionId, path.join(root, 'projects')) });
+    out.push({ ...s, project: path.basename(s.cwd) || s.cwd, transcriptPath: transcripts ? findTranscript(s.sessionId, path.join(root, 'projects')) : null });
   }
   return out;
 }

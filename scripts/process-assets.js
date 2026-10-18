@@ -59,6 +59,19 @@ function processSet(name) {
   return { files: outputs, sources: files };
 }
 
+// App icon for Finder (.icns via the built-in iconutil). Not loaded by the renderer.
+function makeIcon(src) {
+  const iconset = path.join(OUT_DIR, 'icon.iconset');
+  fs.rmSync(iconset, { recursive: true, force: true });
+  fs.mkdirSync(iconset);
+  for (const size of [16, 32, 128, 256, 512]) {
+    resize(src, path.join(iconset, `icon_${size}x${size}.png`), size);
+    resize(src, path.join(iconset, `icon_${size}x${size}@2x.png`), size * 2);
+  }
+  execFileSync('iconutil', ['-c', 'icns', iconset, '-o', path.join(OUT_DIR, 'icon.icns')]);
+  fs.rmSync(iconset, { recursive: true, force: true });
+}
+
 function main() {
   fs.mkdirSync(OUT_DIR, { recursive: true });
   const coding = processSet('coding');
@@ -67,10 +80,11 @@ function main() {
   const traySrc = path.join(SOURCE_DIR, 'idle', idle.sources[0]);
   resize(traySrc, path.join(OUT_DIR, 'tray.png'), TRAY_SIZE);
   resize(traySrc, path.join(OUT_DIR, 'tray@2x.png'), TRAY_SIZE * 2);
+  makeIcon(traySrc);
 
   const manifest = { size: FRAME_SIZE, coding: coding.files, idle: idle.files };
   fs.writeFileSync(path.join(OUT_DIR, 'manifest.json'), JSON.stringify(manifest, null, 2) + '\n');
-  console.log(`wrote ${path.relative(ROOT, OUT_DIR)}/ (${FRAME_SIZE}px frames, tray icon, manifest.json)`);
+  console.log(`wrote ${path.relative(ROOT, OUT_DIR)}/ (${FRAME_SIZE}px frames, tray and app icons, manifest.json)`);
 }
 
 main();

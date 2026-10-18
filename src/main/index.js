@@ -7,6 +7,7 @@ const config = require('./config');
 const { createEventLog } = require('./eventLog');
 const hooksInstaller = require('./hooksInstaller');
 const { readLiveSessions } = require('./liveSessions');
+const { focusProcess } = require('./focusTerminal');
 const { createInterruptWatcher } = require('./interruptWatch');
 const { sanitize } = require('./payload');
 const { createProjects } = require('./projects');
@@ -44,7 +45,7 @@ if (!app.requestSingleInstanceLock()) {
 
 function startPipeline() {
   const eventLog = settings.debugLog ? createEventLog(path.join(config.dataDir, 'events.log')) : null;
-  cats = createCatController(settings);
+  cats = createCatController(settings, { onClick: focusSession });
   projects = createProjects({ autoShow: settings.autoShow, projects: settings.projects });
   store = new SessionStore({
     config: settings,
@@ -101,6 +102,20 @@ function restoreOpenSessions() {
     if (live.busy || !live.transcriptPath) restore('');
     else lastAssistantText(live.transcriptPath, { delayMs: 0 }).then(restore, () => restore(''));
   }
+}
+
+// Clicking a cat: bring its session's terminal (and tab, where possible) to the front.
+let lastFocusAt = 0;
+function focusSession(id) {
+  const now = Date.now();
+  if (now - lastFocusAt < 1000) return; // a double click is still one switch
+  lastFocusAt = now;
+  const live = readLiveSessions({ transcripts: false }).find((s) => s.sessionId === id);
+  if (!live) return console.log(`[claude-cat] no open process for session ${id}`);
+  focusProcess(live.pid).then(
+    (how) => console.log(`[claude-cat] focus ${live.project}: ${how}`),
+    (err) => console.error(`[claude-cat] could not focus the terminal: ${err.message}`)
+  );
 }
 
 // --- Projects: which ones get a cat ---------------------------------------------
@@ -183,7 +198,7 @@ function runHooksAction(action) {
   updateMenu();
 }
 
-// Temporary (until Phase 6): drive a fake session through the real pipeline.
+// Only when run from source (npm start): drive a fake session through the real pipeline.
 function simulate(event, extra = {}) {
   if (store) store.handle({ event, sessionId: 'debug-cat', cwd: '/debug', project: 'debug', ...extra });
 }
@@ -195,14 +210,30 @@ const debugMenu = [
   { label: 'Remove debug cat', click: () => simulate('SessionEnd') },
 ];
 
+// Login items only make sense for the built app; from source it would register Electron itself.
+function loginItem() {
+  if (!app.isPackaged) return { label: 'Launch at login (built app only)', type: 'checkbox', checked: false, enabled: false };
+  return {
+    label: 'Launch at login',
+    type: 'checkbox',
+    checked: app.getLoginItemSettings().openAtLogin,
+    click: (item) => {
+      app.setLoginItemSettings({ openAtLogin: item.checked });
+      updateMenu();
+    },
+  };
+}
+
 function updateMenu() {
   if (!tray) return;
   const installed = hooksInstaller.isInstalled();
   const logFile = path.join(config.dataDir, 'events.log');
+  const open = store ? store.list().length : 0;
   const items = [
     { label: 'Claude Cat', enabled: false },
     { label: `Hooks: ${installed ? 'installed' : 'not installed'}`, enabled: false },
     { label: serverStatus, enabled: false },
+    { label: `${open} ${open === 1 ? 'session' : 'sessions'} open`, enabled: false },
   ];
   if (lastMessage) items.push({ label: head(lastMessage, 60), enabled: false });
   if (projects) menuKey = JSON.stringify(projects.menuList(sessionCounts()));
@@ -213,8 +244,9 @@ function updateMenu() {
     installed
       ? { label: 'Remove hooks', click: () => runHooksAction('uninstall') }
       : { label: 'Install hooks', click: () => runHooksAction('install') },
+    loginItem(),
     { label: 'Open event log', enabled: settings.debugLog, click: () => shell.openPath(logFile) },
-    { label: 'Debug', submenu: debugMenu },
+    ...(app.isPackaged ? [] : [{ label: 'Debug', submenu: debugMenu }]),
     { type: 'separator' },
     { label: 'Quit', click: () => app.quit() }
   );

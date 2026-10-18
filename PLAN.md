@@ -203,19 +203,22 @@ _Notes from Phase 4 testing (2026-10-16):_ the window includes an 84px bubble zo
 **Done when:** two simultaneous sessions in two folders produce two independent cats, and muting one removes only that cat.
 
 ### Phase 6: Polish and packaging
-- [ ] Hooks installer: merge into `~/.claude/settings.json` without clobbering existing hooks, back up the file first, identify entries by the `# claude-cat` marker, and offer "Remove hooks"
-- [ ] Launch at login toggle (`app.setLoginItemSettings`)
-- [ ] Tray status line, "Quit"
-- [ ] `electron-builder` (or equivalent) produces a local `.app`
-- [ ] README with install, hook setup, and a note that Claude Code sessions must be restarted to pick up new hooks
+- [x] Hooks installer: merge into `~/.claude/settings.json` without clobbering existing hooks, back up the file first, identify entries by the `# claude-cat` marker, and offer "Remove hooks"
+- [x] Launch at login toggle (`app.setLoginItemSettings`)
+- [x] Tray status line, "Quit"
+- [x] `electron-builder` (or equivalent) produces a local `.app`
+- [x] README with install, hook setup, and a note that Claude Code sessions must be restarted to pick up new hooks
+- [x] Clicking a cat brings its session's terminal to the front: the exact tab in Terminal and iTerm2 (one macOS Automation prompt), the app itself for any other terminal (added 2026-10-18 at the user's request)
 
 **Done when:** a fresh machine setup works from the README alone.
+
+_Notes from Phase 6 (2026-10-18):_ packaged with `@electron/packager` instead of electron-builder (smaller; only a plain `.app` is needed), then ad-hoc signed. `LSUIElement` keeps the Dock icon from ever appearing. The Debug menu stays, but only when run from source. Install/Remove hooks verified by the user (backups made, 11 entries restored). Launch at login is implemented but not yet tested by the user across a real login.
 
 ---
 
 ## 4. Out of scope (for now)
 
-Windows/Linux, sounds, notifications, themes, multiple cat skins, a cat that follows the mouse, reading anything other than hook events, transcripts and (at startup only) `~/.claude/sessions/`, any network access beyond localhost.
+Windows/Linux, sounds, notifications, themes, multiple cat skins, a cat that follows the mouse, reading anything other than hook events, transcripts, `~/.claude/sessions/` (at startup, and on a click to find the session's process) and the process list (`ps`, on a click), any network access beyond localhost.
 
 ## 5. Verified payload shapes
 

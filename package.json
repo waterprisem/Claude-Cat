@@ -7,10 +7,13 @@
   "scripts": {
     "start": "electron .",
     "assets": "node scripts/process-assets.js",
+    "dist": "node scripts/build-app.js",
     "test": "node --test"
   },
   "license": "UNLICENSED",
   "devDependencies": {
+    "@electron/packager": "^20.3.0",
     "electron": "^44.8.0"
-  }
+  },
+  "productName": "Claude Cat"
 }

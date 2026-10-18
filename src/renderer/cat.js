@@ -268,7 +268,7 @@ document.addEventListener('mouseleave', () => {
   if (!press) onPointer(-1, -1);
 });
 
-// --- Drag (under 3px of movement counts as a click) -------------------------
+// --- Drag (under 3px of movement counts as a click, which opens the terminal) ---
 
 const DRAG_THRESHOLD = 3;
 
@@ -290,6 +290,7 @@ canvas.addEventListener('pointermove', (e) => {
 
 function endPress(e) {
   if (press && press.dragging) window.cat.dragEnd();
+  else if (press && e.type === 'pointerup') window.cat.clicked();
   press = null;
   onPointer(e.clientX, e.clientY);
 }
