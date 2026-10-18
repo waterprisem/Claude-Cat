@@ -4,6 +4,9 @@ A little cat that lives on your macOS desktop and shows what Claude Code is doin
 
 It works through Claude Code hooks: each hook sends a small JSON message to the app on `127.0.0.1`. The app has no Dock icon and lives in the menu bar.
 
+<img width="530" height="344" alt="Screenshot 2026-10-18 at 2 47 02 PM" src="https://github.com/user-attachments/assets/e35778b8-8268-4b52-8144-589815bad506" />
+
+
 ## Requirements
 
 - macOS (Apple Silicon or Intel)
