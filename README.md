@@ -98,3 +98,9 @@ npm run dist     # build the .app
 Only one copy of the app runs at a time. Quit the built app before running `npm start`, and the other way round.
 
 `PLAN.md` has the design, the state machine and the hook payloads it was built against.
+
+## Copyright
+
+© 2026 waterprisem. All rights reserved.
+
+The cat artwork (everything in `assets/`, and the frames and icons made from it) is original work by waterprisem. It may not be copied, changed, redistributed or used in other projects without permission.
